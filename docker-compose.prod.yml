@@ -1,0 +1,87 @@
+version: '3.8'
+
+services:
+  analytics:
+    image: mcp-analytics:latest
+    container_name: mcp-analytics
+    ports:
+      - "8081:8081"
+    environment:
+      - ANALYTICS_ENV=production
+      - ANALYTICS_PORT=8081
+      - POSTGRES_URL=${POSTGRES_URL}
+      - MONGODB_URL=${MONGODB_URL}
+      - MONGODB_DATABASE=mcp_analytics
+      - ELASTICSEARCH_URL=${ELASTICSEARCH_URL}
+      - REDIS_URL=${REDIS_URL}
+      - REGISTRY_URL=${REGISTRY_URL}
+      - INTERNAL_API_KEY=${INTERNAL_API_KEY}
+      - LOG_LEVEL=info
+      - CORS_ORIGINS=${CORS_ORIGINS}
+      # Monitoring
+      - PROMETHEUS_ENABLED=true
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_ENDPOINT}
+    networks:
+      - traefik-network
+      - internal-network
+    labels:
+      # Traefik configuration
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik-network"
+      # HTTP Router
+      - "traefik.http.routers.analytics.rule=Host(`analytics-api.plugged.in`)"
+      - "traefik.http.routers.analytics.entrypoints=websecure"
+      - "traefik.http.routers.analytics.tls=true"
+      - "traefik.http.routers.analytics.tls.certresolver=letsencrypt"
+      # Service
+      - "traefik.http.services.analytics.loadbalancer.server.port=8081"
+      # Middleware
+      - "traefik.http.middlewares.analytics-ratelimit.ratelimit.average=100"
+      - "traefik.http.middlewares.analytics-ratelimit.ratelimit.burst=200"
+      - "traefik.http.routers.analytics.middlewares=analytics-ratelimit"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+
+  # Production databases are external services
+  # Only Redis cache is included here
+  redis:
+    image: redis:7-alpine
+    container_name: mcp-redis-cache
+    command: >
+      redis-server
+      --appendonly yes
+      --requirepass ${REDIS_PASSWORD}
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-cache:/data
+    networks:
+      - internal-network
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 768M
+
+networks:
+  traefik-network:
+    external: true
+  internal-network:
+    driver: bridge
+
+volumes:
+  redis-cache:

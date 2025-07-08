@@ -1,0 +1,176 @@
+version: '3.8'
+
+services:
+  analytics:
+    build: .
+    container_name: mcp-analytics
+    ports:
+      - "8081:8081"
+    environment:
+      - ANALYTICS_ENV=development
+      - ANALYTICS_PORT=8081
+      - POSTGRES_URL=postgres://analytics:analytics@postgres:5432/mcp_analytics?sslmode=disable
+      - MONGODB_URL=mongodb://mongodb:27017
+      - MONGODB_DATABASE=mcp_analytics
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - REDIS_URL=redis://redis:6379
+      - REGISTRY_URL=http://host.docker.internal:8080
+      - INTERNAL_API_KEY=dev-internal-key
+      - LOG_LEVEL=debug
+      - CORS_ORIGINS=http://localhost:3000,http://localhost:3001
+    depends_on:
+      - postgres
+      - mongodb
+      - elasticsearch
+      - redis
+    volumes:
+      - ./:/app
+    networks:
+      - analytics-network
+    restart: unless-stopped
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: mcp-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - xpack.security.enrollment.enabled=false
+      - xpack.security.http.ssl.enabled=false
+      - xpack.security.transport.ssl.enabled=false
+      - cluster.name=mcp-analytics
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    networks:
+      - analytics-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.0
+    container_name: mcp-kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - ELASTICSEARCH_USERNAME=kibana_system
+      - ELASTICSEARCH_PASSWORD=kibana
+      - xpack.security.enabled=false
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+    networks:
+      - analytics-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5601/api/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: mcp-postgres
+    environment:
+      - POSTGRES_USER=analytics
+      - POSTGRES_PASSWORD=analytics
+      - POSTGRES_DB=mcp_analytics
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./scripts/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5433:5432"
+    networks:
+      - analytics-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U analytics -d mcp_analytics"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  mongodb:
+    image: mongo:7
+    container_name: mcp-mongodb-analytics
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=
+      - MONGO_INITDB_ROOT_PASSWORD=
+      - MONGO_INITDB_DATABASE=mcp_analytics
+    volumes:
+      - mongodb-data:/data/db
+      - ./scripts/mongo-init.js:/docker-entrypoint-initdb.d/init.js
+    ports:
+      - "27018:27017"
+    networks:
+      - analytics-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/mcp_analytics --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: mcp-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6380:6379"
+    networks:
+      - analytics-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Development tools
+  adminer:
+    image: adminer
+    container_name: mcp-adminer
+    ports:
+      - "8082:8080"
+    networks:
+      - analytics-network
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: mcp-redis-commander
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    ports:
+      - "8083:8081"
+    networks:
+      - analytics-network
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+networks:
+  analytics-network:
+    driver: bridge
+
+volumes:
+  elasticsearch-data:
+  postgres-data:
+  mongodb-data:
+  redis-data:

@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  analytics:
+    build: .
+    container_name: mcp-analytics
+    ports:
+      - "8081:8081"
+    environment:
+      - ANALYTICS_ENV=development
+      - ANALYTICS_PORT=8081
+      - LOG_LEVEL=debug
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - REDIS_URL=redis://redis:6379
+      - INTERNAL_API_KEY=dev-internal-key
+    depends_on:
+      - elasticsearch
+      - redis
+    volumes:
+      - .:/app
+    command: go run cmd/analytics/main.go
+    networks:
+      - analytics-network
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.1
+    container_name: analytics-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - xpack.security.enabled=false
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+    networks:
+      - analytics-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: analytics-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - analytics-network
+
+volumes:
+  es-data:
+  redis-data:
+
+networks:
+  analytics-network:
+    driver: bridge
