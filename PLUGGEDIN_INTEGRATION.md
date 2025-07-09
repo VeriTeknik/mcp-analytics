@@ -70,7 +70,7 @@ X-Internal-Key: internal-shared-secret
 
 #### Search Servers
 ```http
-GET /v1/search
+GET /api/v1/search
 ```
 
 Query Parameters:
@@ -90,7 +90,7 @@ Query Parameters:
 
 Example Request:
 ```bash
-curl "https://analytics.plugged.in/v1/search?q=database&package_type=npm,docker&min_rating=4&sort=popularity&limit=20"
+curl "https://analytics.plugged.in/api/v1/search?q=database&package_type=npm,docker&min_rating=4&sort=popularity&limit=20"
 ```
 
 Example Response:
@@ -157,7 +157,7 @@ Example Response:
 
 #### Featured Servers
 ```http
-GET /v1/featured
+GET /api/v1/featured
 ```
 
 Query Parameters:
@@ -166,7 +166,7 @@ Query Parameters:
 
 #### Trending Servers
 ```http
-GET /v1/trending
+GET /api/v1/trending
 ```
 
 Query Parameters:
@@ -176,7 +176,7 @@ Query Parameters:
 
 #### Top Rated Servers
 ```http
-GET /v1/top-rated
+GET /api/v1/top-rated
 ```
 
 Query Parameters:
@@ -186,7 +186,7 @@ Query Parameters:
 
 #### Recently Active
 ```http
-GET /v1/recent
+GET /api/v1/recent
 ```
 
 Query Parameters:
@@ -197,7 +197,7 @@ Query Parameters:
 
 #### Get Server Analytics
 ```http
-GET /v1/servers/{id}/analytics
+GET /api/v1/servers/{id}/analytics
 ```
 
 Response:
@@ -259,7 +259,7 @@ Response:
 
 #### Get Server Reviews
 ```http
-GET /v1/servers/{id}/reviews
+GET /api/v1/servers/{id}/reviews
 ```
 
 Query Parameters:
@@ -272,7 +272,7 @@ Query Parameters:
 
 #### Track Installation
 ```http
-POST /v1/installs
+POST /api/v1/installs
 Authorization: Bearer {user-token}
 ```
 
@@ -292,7 +292,7 @@ Request Body:
 
 #### Track Uninstallation
 ```http
-POST /v1/uninstalls
+POST /api/v1/uninstalls
 Authorization: Bearer {user-token}
 ```
 
@@ -307,7 +307,7 @@ Request Body:
 
 #### Submit Rating
 ```http
-POST /v1/ratings
+POST /api/v1/ratings
 Authorization: Bearer {user-token}
 ```
 
@@ -328,7 +328,7 @@ Request Body:
 
 #### Track Usage Event
 ```http
-POST /v1/usage
+POST /api/v1/usage
 Authorization: Bearer {user-token}
 ```
 
@@ -356,7 +356,7 @@ Request Body:
 
 #### Global Statistics
 ```http
-GET /v1/stats/global
+GET /api/v1/stats/global
 ```
 
 Response:
@@ -386,12 +386,12 @@ Response:
 
 #### Category Statistics
 ```http
-GET /v1/stats/categories
+GET /api/v1/stats/categories
 ```
 
 #### Popular Tools
 ```http
-GET /v1/stats/tools
+GET /api/v1/stats/tools
 ```
 
 Response shows most-used tools across all servers.
@@ -515,9 +515,8 @@ function handleSortChange(sortField) {
 #### Featured Servers Section
 ```javascript
 async function loadFeaturedServers() {
-  const featured = await searchClient.getFeatured({
-    category: currentCategory,
-    limit: 6
+  const featured = await searchClient.get('/api/v1/featured', {
+    params: { category: currentCategory, limit: 6 }
   });
   
   displayFeaturedSection(featured);
@@ -527,9 +526,8 @@ async function loadFeaturedServers() {
 #### Trending Servers Section
 ```javascript
 async function loadTrendingServers() {
-  const trending = await searchClient.getTrending({
-    period: 'week',
-    limit: 10
+  const trending = await searchClient.get('/api/v1/trending', {
+    params: { period: 'week', limit: 10 }
   });
   
   displayTrendingSection(trending);
@@ -912,10 +910,10 @@ class MCPServerSearch {
 class AnalyticsDashboard {
   async loadDashboard() {
     const [global, trending, topRated, categories] = await Promise.all([
-      this.analytics.getGlobalStats(),
-      this.analytics.getTrending({ period: 'week', limit: 10 }),
-      this.analytics.getTopRated({ limit: 10 }),
-      this.analytics.getCategoryStats()
+      this.analytics.get('/api/v1/stats/global'),
+      this.analytics.get('/api/v1/trending', { params: { period: 'week', limit: 10 } }),
+      this.analytics.get('/api/v1/top-rated', { params: { limit: 10 } }),
+      this.analytics.get('/api/v1/stats/categories')
     ]);
     
     this.renderGlobalStats(global);
@@ -925,7 +923,7 @@ class AnalyticsDashboard {
   }
   
   subscribeToRealtimeUpdates() {
-    const ws = new WebSocket('wss://analytics.plugged.in/v1/realtime');
+    const ws = new WebSocket('wss://analytics.plugged.in/api/v1/realtime');
     
     ws.on('message', (event) => {
       const update = JSON.parse(event.data);
