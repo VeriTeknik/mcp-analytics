@@ -20,9 +20,7 @@ This guide provides comprehensive documentation for integrating the plugged.in a
 The Analytics Service provides comprehensive tracking, search, and discovery features for MCP servers in the plugged.in app.
 
 ### Base URLs
-- **Production**: `https://analytics-api.plugged.in`
-- **Staging**: `https://analytics-api-staging.plugged.in`
-- **Development**: `http://localhost:8081`
+- **Production**: `https://analytics.plugged.in`
 
 ### API Versioning
 All endpoints are versioned. Current version: `v1`
@@ -92,7 +90,7 @@ Query Parameters:
 
 Example Request:
 ```bash
-curl "https://analytics-api.plugged.in/v1/search?q=database&package_type=npm,docker&min_rating=4&sort=popularity&limit=20"
+curl "https://analytics.plugged.in/v1/search?q=database&package_type=npm,docker&min_rating=4&sort=popularity&limit=20"
 ```
 
 Example Response:
@@ -453,7 +451,7 @@ analytics.track('tool_used', {
 ```javascript
 // Initialize search client
 const searchClient = new AnalyticsClient({
-  baseURL: 'https://analytics-api.plugged.in',
+  baseURL: 'https://analytics.plugged.in',
   apiKey: 'your-api-key'
 });
 
@@ -544,7 +542,7 @@ async function loadTrendingServers() {
 
 ```javascript
 // Connect to real-time updates
-const ws = new WebSocket('wss://analytics-api.plugged.in/v1/realtime');
+const ws = new WebSocket('wss://analytics.plugged.in/v1/realtime');
 
 ws.on('open', () => {
   // Subscribe to updates
@@ -576,7 +574,7 @@ ws.on('message', (data) => {
 ```javascript
 // For simpler one-way updates
 const eventSource = new EventSource(
-  'https://analytics-api.plugged.in/v1/events/stream'
+  'https://analytics.plugged.in/v1/events/stream'
 );
 
 eventSource.addEventListener('trending', (event) => {
@@ -927,7 +925,7 @@ class AnalyticsDashboard {
   }
   
   subscribeToRealtimeUpdates() {
-    const ws = new WebSocket('wss://analytics-api.plugged.in/v1/realtime');
+    const ws = new WebSocket('wss://analytics.plugged.in/v1/realtime');
     
     ws.on('message', (event) => {
       const update = JSON.parse(event.data);
