@@ -449,6 +449,92 @@ func (s *Service) buildESQuery(query SearchQuery) map[string]interface{} {
 	return esQuery
 }
 
+// MigrateServerSources updates existing servers to populate the source field
+func (s *Service) MigrateServerSources(ctx context.Context) error {
+	// Search for all servers without source field or with empty source
+	query := map[string]interface{}{
+		"query": map[string]interface{}{
+			"bool": map[string]interface{}{
+				"should": []interface{}{
+					map[string]interface{}{
+						"bool": map[string]interface{}{
+							"must_not": map[string]interface{}{
+								"exists": map[string]interface{}{
+									"field": "source",
+								},
+							},
+						},
+					},
+					map[string]interface{}{
+						"term": map[string]interface{}{
+							"source": "",
+						},
+					},
+				},
+			},
+		},
+		"size": 1000,
+	}
+
+	body, err := json.Marshal(query)
+	if err != nil {
+		return fmt.Errorf("failed to marshal query: %w", err)
+	}
+
+	res, err := s.client.Search(
+		s.client.Search.WithContext(ctx),
+		s.client.Search.WithIndex(serverIndexName),
+		s.client.Search.WithBody(bytes.NewReader(body)),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to search servers: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.IsError() {
+		return fmt.Errorf("search error: %s", res.String())
+	}
+
+	var result struct {
+		Hits struct {
+			Hits []struct {
+				ID     string              `json:"_id"`
+				Source model.ServerDetail `json:"_source"`
+			} `json:"hits"`
+		} `json:"hits"`
+	}
+
+	if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
+		return fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	// Update each server with the source field
+	for _, hit := range result.Hits.Hits {
+		server := hit.Source
+		
+		// Determine source based on name pattern
+		if strings.HasPrefix(server.Name, "io.github.") {
+			server.Source = "github"
+		} else if strings.Contains(server.Name, "community") || strings.Contains(server.ID, "community") {
+			server.Source = "community"
+		} else if strings.Contains(server.Name, "private") || strings.Contains(server.ID, "private") {
+			server.Source = "private"
+		} else {
+			server.Source = "github" // Default for io.github.* servers
+		}
+
+		// Update the server in Elasticsearch
+		if err := s.IndexServer(ctx, &server); err != nil {
+			log.Printf("Failed to update server %s: %v", server.ID, err)
+			continue
+		}
+		
+		log.Printf("Updated server %s with source: %s", server.ID, server.Source)
+	}
+
+	return nil
+}
+
 // parseFacets extracts facet data from aggregations
 func (s *Service) parseFacets(aggs map[string]interface{}) []Facet {
 	facets := []Facet{}

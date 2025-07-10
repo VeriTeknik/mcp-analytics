@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -173,11 +174,51 @@ func (h *EventHandler) eventDataToServerDetail(data map[string]interface{}) (*mo
 		return nil, fmt.Errorf("failed to unmarshal to ServerDetail: %w", err)
 	}
 
+	// Map server_id to id if present
+	if serverID, ok := data["server_id"].(string); ok && server.ID == "" {
+		server.ID = serverID
+	}
+
+	// Map total_installs to install_count if present
+	if totalInstalls, ok := data["total_installs"].(float64); ok {
+		server.InstallCount = int64(totalInstalls)
+	}
+
+	// Map rating to rating_average if present
+	if rating, ok := data["rating"].(float64); ok {
+		server.RatingAverage = rating
+	}
+
+	// Set source field if not present - determine from server name/ID
+	if server.Source == "" {
+		server.Source = determineServerSource(server.ID, server.Name)
+	}
+
 	// Set additional fields
 	server.IndexedAt = time.Now()
 	server.LastUpdated = time.Now()
 
 	return &server, nil
+}
+
+// determineServerSource determines the source based on server ID/name patterns
+func determineServerSource(id, name string) string {
+	// Check for GitHub pattern
+	if strings.HasPrefix(name, "io.github.") {
+		return "github"
+	}
+	
+	// Check for other patterns
+	if strings.Contains(name, "community") || strings.Contains(id, "community") {
+		return "community"
+	}
+	
+	if strings.Contains(name, "private") || strings.Contains(id, "private") {
+		return "private"
+	}
+	
+	// Default to github for io.github.* servers
+	return "github"
 }
 
 // applyUpdates applies updates from event data to existing server
@@ -193,6 +234,11 @@ func (h *EventHandler) applyUpdates(server *model.ServerDetail, updates map[stri
 	updatedServer.ID = server.ID
 	updatedServer.IndexedAt = server.IndexedAt
 	updatedServer.LastUpdated = time.Now()
+	
+	// Preserve source if not provided in updates
+	if updatedServer.Source == "" {
+		updatedServer.Source = server.Source
+	}
 
 	// Copy updated fields back
 	*server = *updatedServer

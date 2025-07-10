@@ -88,9 +88,35 @@ Query Parameters:
 - `page` (number): Page number (1-based)
 - `limit` (number): Results per page (max 100)
 
-Example Request:
+##### Source Filtering
+The `source` parameter allows filtering servers by their hosting source:
+- `github`: Registry servers hosted on GitHub (official MCP registry)
+- `community`: Community-contributed servers
+- `private`: Private/internal servers (requires authentication)
+
+You can specify multiple sources as comma-separated values: `source=github,community`
+
+Example Requests:
+
+Basic search:
 ```bash
 curl "https://analytics.plugged.in/api/v1/search?q=database&package_type=npm,docker&min_rating=4&sort=popularity&limit=20"
+```
+
+Search by source:
+```bash
+# Registry servers (GitHub-hosted)
+curl "https://analytics.plugged.in/api/v1/search?source=github&page=1&limit=20&sort=popularity"
+
+# Community servers
+curl "https://analytics.plugged.in/api/v1/search?source=community&page=1&limit=30&sort=recent"
+
+# Private servers (requires authentication)
+curl "https://analytics.plugged.in/api/v1/search?source=private&page=1&limit=10" \
+  -H "Authorization: Bearer {user-token}"
+
+# Combined sources
+curl "https://analytics.plugged.in/api/v1/search?source=github,community&q=tools&page=1&limit=50"
 ```
 
 Example Response:
@@ -939,6 +965,52 @@ class AnalyticsDashboard {
     });
   }
 }
+```
+
+## Additional Search Examples
+
+### Pagination Examples
+```bash
+# First page of results
+curl "https://analytics.plugged.in/api/v1/search?page=1&limit=20"
+
+# Second page of results
+curl "https://analytics.plugged.in/api/v1/search?page=2&limit=20"
+
+# Large result set with 100 items per page
+curl "https://analytics.plugged.in/api/v1/search?page=1&limit=100"
+```
+
+### Source-based Search Examples
+```bash
+# GitHub registry servers only
+curl "https://analytics.plugged.in/api/v1/search?source=github&sort=popularity&limit=50"
+
+# Community servers with high ratings
+curl "https://analytics.plugged.in/api/v1/search?source=community&min_rating=4&sort=rating"
+
+# Private servers with specific package type
+curl "https://analytics.plugged.in/api/v1/search?source=private&package_type=npm" \
+  -H "Authorization: Bearer {user-token}"
+
+# Search across GitHub and community sources
+curl "https://analytics.plugged.in/api/v1/search?source=github,community&q=database"
+
+# Exclude GitHub registry, show only community and private
+curl "https://analytics.plugged.in/api/v1/search?source=community,private&sort=recent"
+```
+
+### Complex Query Examples
+```bash
+# High-quality community tools
+curl "https://analytics.plugged.in/api/v1/search?source=community&has_tools=true&min_rating=4.5&sort=popularity"
+
+# GitHub registry AI agents
+curl "https://analytics.plugged.in/api/v1/search?source=github&category=ai-agents&sort=trending"
+
+# Private npm packages with database category
+curl "https://analytics.plugged.in/api/v1/search?source=private&package_type=npm&category=database" \
+  -H "Authorization: Bearer {user-token}"
 ```
 
 ## Rate Limiting

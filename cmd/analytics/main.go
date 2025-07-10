@@ -43,6 +43,16 @@ func main() {
 		log.Fatalf("Failed to initialize search service: %v", err)
 	}
 
+	// Run migration to populate source fields for existing servers
+	log.Println("Running server source migration...")
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	if err := searchService.MigrateServerSources(ctx); err != nil {
+		log.Printf("Migration warning: %v", err)
+	} else {
+		log.Println("Server source migration completed successfully")
+	}
+	cancel()
+
 	// Create event handler
 	eventHandler := api.NewEventHandler(searchService)
 
